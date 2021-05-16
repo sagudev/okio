@@ -62,7 +62,7 @@ internal inline fun ByteString.commonHex(): String {
     result[c++] = HEX_DIGIT_CHARS[b shr 4 and 0xf]
     result[c++] = HEX_DIGIT_CHARS[b       and 0xf] // ktlint-disable no-multi-spaces
   }
-  return String(result)
+  return result.concatToString()
 }
 
 @Suppress("NOTHING_TO_INLINE")

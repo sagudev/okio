@@ -15,7 +15,10 @@
  */
 package okio
 
+import kotlinx.cinterop.ByteVar
+import kotlinx.cinterop.ByteVarOf
 import kotlinx.cinterop.CPointer
+import kotlinx.cinterop.CValuesRef
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
@@ -23,8 +26,10 @@ import okio.internal.toPath
 import platform.posix.FILE
 import platform.posix.errno
 import platform.posix.fileno
+import platform.posix.fopen
 import platform.posix.free
 import platform.posix.fstat
+import platform.posix.ftruncate
 import platform.posix.mkdir
 import platform.posix.realpath
 import platform.posix.remove
@@ -70,7 +75,7 @@ internal actual fun PosixFileSystem.variantMove(
   }
 }
 
-internal actual fun variantSize(file: CPointer<FILE>): Long {
+fun variantSize(file: CPointer<FILE>): Long {
   memScoped {
     val stat = alloc<stat>()
     if (fstat(fileno(file), stat.ptr) != 0) {
@@ -79,6 +84,40 @@ internal actual fun variantSize(file: CPointer<FILE>): Long {
     return stat.st_size
   }
 }
+
+fun variantResize(file: CPointer<FILE>, size: Long) {
+  if (ftruncate(fileno(file), size) == -1) {
+    throw errnoToIOException(errno)
+  }
+}
+
+@ExperimentalFileSystem
+internal actual fun PosixFileSystem.variantOpenReadOnly(file: Path): FileHandle {
+  val openFile: CPointer<FILE> = fopen(file.toString(), "r")
+    ?: throw errnoToIOException(errno)
+  return PosixFileHandle(false, openFile)
+}
+
+@ExperimentalFileSystem
+internal actual fun PosixFileSystem.variantOpenReadWrite(file: Path): FileHandle {
+  val openFile: CPointer<FILE> = fopen(file.toString(), "a+")
+    ?: throw errnoToIOException(errno)
+  return PosixFileHandle(true, openFile)
+}
+
+internal expect fun variantPread(
+  file: CPointer<FILE>,
+  target: CValuesRef<*>,
+  byteCount: Int,
+  offset: Long
+): Int
+
+internal expect fun variantPwrite(
+  file: CPointer<FILE>,
+  source: CValuesRef<*>,
+  byteCount: Int,
+  offset: Long
+): Int
 
 internal val timespec.epochMillis: Long
   get() = tv_sec * 1000L + tv_sec / 1_000_000L

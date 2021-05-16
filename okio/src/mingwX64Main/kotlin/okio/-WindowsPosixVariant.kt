@@ -17,6 +17,7 @@ package okio
 
 import kotlinx.cinterop.ByteVar
 import kotlinx.cinterop.ByteVarOf
+import kotlinx.cinterop.CPointed
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
@@ -26,13 +27,11 @@ import platform.posix.EACCES
 import platform.posix.ENOENT
 import platform.posix.FILE
 import platform.posix.PATH_MAX
-import platform.posix.SEEK_SET
 import platform.posix.S_IFDIR
 import platform.posix.S_IFMT
 import platform.posix.S_IFREG
-import platform.posix._fseeki64
+import platform.posix._chsize_s
 import platform.posix._fstat64
-import platform.posix._ftelli64
 import platform.posix._fullpath
 import platform.posix._stat64
 import platform.posix.errno
@@ -45,6 +44,15 @@ import platform.posix.remove
 import platform.posix.rmdir
 import platform.windows.MOVEFILE_REPLACE_EXISTING
 import platform.windows.MoveFileExA
+import platform.windows.CreateFileA
+import platform.windows.FILE_ATTRIBUTE_NORMAL
+import platform.windows.FILE_SHARE_WRITE
+import platform.windows.GENERIC_READ
+import platform.windows.GENERIC_WRITE
+import platform.windows.HANDLE
+import platform.windows.INVALID_HANDLE_VALUE
+import platform.windows.OPEN_ALWAYS
+import platform.windows.OPEN_EXISTING
 
 internal actual val PLATFORM_DIRECTORY_SEPARATOR = "\\"
 
@@ -118,33 +126,59 @@ internal actual fun variantFread(
 }
 
 internal actual fun variantFwrite(
-  target: CPointer<ByteVar>,
+  source: CPointer<ByteVar>,
   byteCount: UInt,
   file: CPointer<FILE>
 ): UInt {
-  return fwrite(target, 1, byteCount.toULong(), file).toUInt()
+  return fwrite(source, 1, byteCount.toULong(), file).toUInt()
 }
 
-internal actual fun variantFtell(file: CPointer<FILE>): Long {
-  val result = _ftelli64(file)
-  if (result == -1L) {
-    throw errnoToIOException(errno)
+@ExperimentalFileSystem
+internal actual fun PosixFileSystem.variantOpenReadOnly(file: Path): FileHandle {
+  val openFile = CreateFileA(
+    lpFileName = file.toString(),
+    dwDesiredAccess = GENERIC_READ,
+    dwShareMode = FILE_SHARE_WRITE,
+    lpSecurityAttributes = null,
+    dwCreationDisposition = OPEN_EXISTING,
+    dwFlagsAndAttributes = FILE_ATTRIBUTE_NORMAL,
+    hTemplateFile = null
+  )
+  if (openFile == INVALID_HANDLE_VALUE) {
+    throw lastErrorToIOException()
   }
-  return result
+  return WindowsFileHandle(false, openFile)
 }
 
-internal actual fun variantSize(file: CPointer<FILE>): Long {
-  memScoped {
-    val stat = alloc<_stat64>()
-    if (_fstat64(fileno(file), stat.ptr) != 0) {
-      throw errnoToIOException(errno)
-    }
-    return stat.st_size
+@ExperimentalFileSystem
+internal actual fun PosixFileSystem.variantOpenReadWrite(file: Path): FileHandle {
+  val openFile = CreateFileA(
+    lpFileName = file.toString(),
+    dwDesiredAccess = GENERIC_READ or GENERIC_WRITE.toUInt(),
+    dwShareMode = FILE_SHARE_WRITE,
+    lpSecurityAttributes = null,
+    dwCreationDisposition = OPEN_ALWAYS,
+    dwFlagsAndAttributes = FILE_ATTRIBUTE_NORMAL,
+    hTemplateFile = null
+  )
+  if (openFile == INVALID_HANDLE_VALUE) {
+    throw lastErrorToIOException()
   }
+  return WindowsFileHandle(true, openFile)
 }
 
-internal actual fun variantSeek(position: Long, file: CPointer<FILE>) {
-  if (_fseeki64(file, position, SEEK_SET) != 0) {
-    throw errnoToIOException(errno)
-  }
-}
+//internal actual fun variantSize(file: CPointer<FILE>): Long {
+//  memScoped {
+//    val stat = alloc<_stat64>()
+//    if (_fstat64(fileno(file), stat.ptr) != 0) {
+//      throw errnoToIOException(errno)
+//    }
+//    return stat.st_size
+//  }
+//}
+//
+//internal actual fun variantResize(file: CPointer<FILE>, size: Long) {
+//  if (_chsize_s(fileno(file), size) != 0) {
+//    throw errnoToIOException(errno)
+//  }
+//}
