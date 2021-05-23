@@ -1,5 +1,5 @@
 plugins {
-  kotlin("multiplatform")
+  kotlin("js")
 }
 
 kotlin {
@@ -25,7 +25,7 @@ kotlin {
     all {
       languageSettings.useExperimentalAnnotation("kotlin.RequiresOptIn")
     }
-    val jsMain by getting {
+    val main by getting {
       dependencies {
         implementation(project(":okio"))
         api(deps.kotlin.stdLib.common)
@@ -34,7 +34,7 @@ kotlin {
         api(deps.kotlin.stdLib.js)
       }
     }
-    val jsTest by getting {
+    val test by getting {
       dependencies {
         implementation(deps.kotlin.test.common)
         implementation(deps.kotlin.test.annotations)

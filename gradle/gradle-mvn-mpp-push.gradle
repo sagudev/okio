@@ -106,19 +106,19 @@ publishing {
   
   // Use default artifact name for the JVM target
   publications {
-    kotlinMultiplatform {
-      artifactId = POM_ARTIFACT_ID + '-multiplatform'
-    }
-    def jvm = findByName("jvm")
-    if (jvm != null) {
-      jvm.artifactId = POM_ARTIFACT_ID
+    if (project.name == "okio") {
+      kotlinMultiplatform {
+        artifactId = POM_ARTIFACT_ID + '-multiplatform'
+      }
+      findByName("jvm").artifactId = POM_ARTIFACT_ID
     }
   }
 
   afterEvaluate {
-    publications.getByName('kotlinMultiplatform') {
-      // Source jars are only created for platforms, not the common artifact.
-      artifact emptySourcesJar
+    // Source jars are only created for platforms, not the common artifact.
+    def kotlinMultiplatform = publications.findByName("kotlinMultiplatform")
+    if (kotlinMultiplatform != null) {
+      kotlinMultiplatform.artifact(emptySourcesJar)
     }
   }
 
